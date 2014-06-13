@@ -176,6 +176,11 @@ bool rockminer_detect_one(const char * const devpath)
 			return_via_applog(err, , LOG_DEBUG, "%s: Short read from %s (%d)", rockminer_drv.dname, devpath, rsz);
 		if ((!memcmp(reply, golden_result, sizeof(golden_result))) && (reply[4] & 0xf) == ROCKMINER_REPLY_NONCE_FOUND)
 			break;
+		if (rsz < 0)
+			rsz = 0;
+		char x[(rsz * 2) + 1];
+		bin2hex(x, reply, rsz);
+		applog(LOG_DEBUG, "%s: Read %s", rockminer_drv.dname, x);
 	}
 	
 	applog(LOG_DEBUG, "%s: Found chip 0 on %s, probing for total chip count", rockminer_drv.dname, devpath);
