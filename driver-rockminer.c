@@ -155,7 +155,7 @@ bool rockminer_detect_one(const char * const devpath)
 	uint8_t buf[ROCKMINER_WORK_REQ_SIZE], reply[ROCKMINER_REPLY_SIZE];
 	ssize_t rsz;
 	
-	fd = serial_open(devpath, 0, 1, true);
+	fd = serial_open(devpath, 0, 10, true);
 	if (fd < 0)
 		return_via_applog(err, , LOG_DEBUG, "%s: %s %s", rockminer_drv.dname, "Failed to open", devpath);
 	
