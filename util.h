@@ -420,12 +420,12 @@ typedef struct bytes_t {
 	size_t allocsz;
 } bytes_t;
 
-#define BYTES_INIT ((bytes_t){.buf=NULL,})
+#define BYTES_INIT {.buf=NULL,}
 
 static inline
 void bytes_init(bytes_t *b)
 {
-	*b = BYTES_INIT;
+	*b = (bytes_t)BYTES_INIT;
 }
 
 // This can't be inline without ugly const/non-const issues
@@ -446,6 +446,14 @@ ssize_t bytes_find(const bytes_t * const b, const uint8_t needle)
 		if (buf[i] == needle)
 			return i;
 	return -1;
+}
+
+static inline
+bool bytes_eq(const bytes_t * const a, const bytes_t * const b)
+{
+	if (a->sz != b->sz)
+		return false;
+	return !memcmp(a->buf, b->buf, a->sz);
 }
 
 extern void _bytes_alloc_failure(size_t);
@@ -517,6 +525,19 @@ void bytes_cpy(bytes_t *dst, const bytes_t *src)
 		dst->allocsz = half;
 	dst->buf = malloc(dst->allocsz);
 	memcpy(dst->buf, src->buf, dst->sz);
+}
+
+// Efficiently moves the data from src to dst, emptying src in the process
+static inline
+void bytes_assimilate(bytes_t * const dst, bytes_t * const src)
+{
+	void * const buf = dst->buf;
+	const size_t allocsz = dst->allocsz;
+	*dst = *src;
+	*src = (bytes_t){
+		.buf = buf,
+		.allocsz = allocsz,
+	};
 }
 
 static inline
