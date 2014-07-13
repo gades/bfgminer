@@ -3,6 +3,7 @@
  * Copyright 2011-2013 Luke Dashjr
  * Copyright 2012-2013 Andrew Smith
  * Copyright 2010 Jeff Garzik
+ * Copyright 2014 Nate Woolls
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free
@@ -3305,6 +3306,12 @@ static float
 utility_to_hashrate(double utility)
 {
 	return utility * 0x4444444;
+}
+
+static
+double hashrate_to_utility(float hashrate)
+{
+	return hashrate / 0x4444444;
 }
 
 static const char*_unitchar = "pn\xb5m kMGTPEZY?";
@@ -10556,6 +10563,28 @@ static void *watchdog_thread(void __maybe_unused *userdata)
 	return NULL;
 }
 
+int get_secs_since_nonce(const struct cgpu_info * const cgpu, const struct timeval * const tvp_now)
+{
+	time_t last_nonce = cgpu->last_device_valid_work;
+	if (last_nonce == 0)
+		last_nonce = cgpu->device->cgminer_stats.start_tv.tv_sec;
+
+	int secs_since = last_nonce > tvp_now->tv_sec ? 0 : tvp_now->tv_sec - last_nonce;
+
+	return secs_since;
+}
+
+double calc_secs_per_nonce(const struct cgpu_info * const cgpu)
+{
+	double pool_diff = target_diff(pools[cgpu->last_share_pool]->swork.target);
+	float core_hash_rate = cgpu->rolling * 1000 * 1000;
+	double work_utility = hashrate_to_utility(core_hash_rate);
+	double nonces_per_min = work_utility / pool_diff;
+	double secs_per_nonce = (1 / nonces_per_min) * 60;
+
+	return secs_per_nonce;
+}
+
 void bfg_watchdog(struct cgpu_info * const cgpu, struct timeval * const tvp_now)
 {
 			struct thr_info *thr = cgpu->thr[0];
@@ -10664,6 +10693,24 @@ void bfg_watchdog(struct cgpu_info * const cgpu, struct timeval * const tvp_now)
 				if (opt_restart)
 					reinit_device(cgpu);
 			}
+
+	double secs_per_nonce = calc_secs_per_nonce(cgpu);
+	int secs_since_nonce = get_secs_since_nonce(cgpu, tvp_now);
+	const int bad_luck = 10;
+
+	if (secs_since_nonce > (secs_per_nonce * bad_luck))
+	{
+		applog(LOG_ERR, "%s: Expected nonce after %f secs (been waiting %d secs)",
+			   cgpu->proc_repr,
+			   secs_per_nonce,
+			   secs_since_nonce);
+
+		if (opt_restart)
+		{
+			applog(LOG_ERR, "%s: Attempting to restart", dev_str);
+			reinit_device(cgpu);
+		}
+	}
 }
 
 static void log_print_status(struct cgpu_info *cgpu)
